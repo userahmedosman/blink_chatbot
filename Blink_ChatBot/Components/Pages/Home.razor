@@ -1,0 +1,196 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject IChatbot chatbot
+@inject ILogger<Home> Logger
+
+<PageTitle>Blink — Your AI chat</PageTitle>
+
+<div class="chat-app">
+    <aside class="chat-sidebar @(sidebarOpen ? "is-open" : string.Empty)" aria-label="Chat navigation">
+        <a class="brand" href="" aria-label="Blink home">
+            
+            <span>blink<span class="brand-period">.</span></span>
+        </a>
+
+        <button class="new-chat-button" @onclick="StartNewConversation" disabled="@chatbot.IsProcessing">
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
+            <span>New chat</span>
+        </button>
+
+        <div class="history-section">
+            <p class="section-label">THIS SESSION</p>
+            <p class="empty-history">Your conversation stays available while this session is open.</p>
+        </div>
+
+        <div class="sidebar-bottom">
+            <div class="plan-note"><span class="plan-dot"></span><span>AI assistant connected</span></div>
+            <div class="profile-row">
+                <div class="profile-avatar">B</div>
+                <div class="profile-copy"><strong>Guest</strong><span>Welcome to Blink</span></div>
+                <button class="profile-menu" aria-label="Profile options" title="Profile options">···</button>
+            </div>
+        </div>
+    </aside>
+
+    @if (sidebarOpen)
+    {
+        <button class="sidebar-scrim" aria-label="Close navigation" @onclick="ToggleSidebar"></button>
+    }
+
+    <main class="chat-main">
+        <header class="topbar">
+            <button class="mobile-menu" aria-label="Open navigation" @onclick="ToggleSidebar">
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+            </button>
+            <div class="model-label"><span class="model-sparkle" aria-hidden="true">✳</span><span>Blink assistant</span><span class="model-chevron" aria-hidden="true">⌄</span></div>
+            <div class="topbar-status"><span class="online-dot"></span><span>@(chatbot.IsProcessing ? "Thinking..." : "Ready to help")</span></div>
+        </header>
+
+        <section class="conversation" aria-label="Conversation" aria-live="polite">
+            @if (chatbot.Conversation.Count == 0)
+            {
+                <div class="welcome">
+                    <div class="welcome-icon" aria-hidden="true">
+                        <svg viewBox="0 0 32 32" fill="none"><path d="M17.6 3.8 7.6 17.4h6.8l-1 10.8 11-13.5h-7l.2-10.9Z" fill="currentColor" /></svg>
+                    </div>
+                    <p class="eyebrow">A LITTLE HELP GOES A LONG WAY</p>
+                    <h1>Good ideas start<br />with a <span>conversation.</span></h1>
+                    <p class="welcome-copy">What’s on your mind today? Pick a place to start, or just say hello.</p>
+                    <div class="suggestions">
+                        <button class="suggestion-card" @onclick='() => SendPromptAsync("Help me brainstorm a weekend project")' disabled="@chatbot.IsProcessing">
+                            <span class="suggestion-icon lavender" aria-hidden="true">✳</span>
+                            <span><strong>Brainstorm ideas</strong><small>Find inspiration for your next project</small></span>
+                            <span class="suggestion-arrow" aria-hidden="true">↗</span>
+                        </button>
+                        <button class="suggestion-card" @onclick='() => SendPromptAsync("Help me write a thoughtful email")' disabled="@chatbot.IsProcessing">
+                            <span class="suggestion-icon peach" aria-hidden="true">↗</span>
+                            <span><strong>Write something</strong><small>Turn a rough thought into clear words</small></span>
+                            <span class="suggestion-arrow" aria-hidden="true">↗</span>
+                        </button>
+                        <button class="suggestion-card" @onclick='() => SendPromptAsync("Explain a tricky topic simply")' disabled="@chatbot.IsProcessing">
+                            <span class="suggestion-icon mint" aria-hidden="true">◎</span>
+                            <span><strong>Learn something</strong><small>Make a complicated topic feel simple</small></span>
+                            <span class="suggestion-arrow" aria-hidden="true">↗</span>
+                        </button>
+                        <button class="suggestion-card" @onclick='() => SendPromptAsync("Help me plan my week")' disabled="@chatbot.IsProcessing">
+                            <span class="suggestion-icon butter" aria-hidden="true">⌑</span>
+                            <span><strong>Make a plan</strong><small>Get a little more organized, effortlessly</small></span>
+                            <span class="suggestion-arrow" aria-hidden="true">↗</span>
+                        </button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="message-list">
+                    @foreach (var message in chatbot.Conversation)
+                    {
+                        <article class="message-row @(message.Role == MessageRole.User ? "user-message" : "assistant-message")">
+                            @if (message.Role == MessageRole.User)
+                            {
+                                <div class="user-bubble">@message.Text</div>
+                            }
+                            else
+                            {
+                                <div class="assistant-avatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M13.2 2.8 5.7 13h5.1l-.8 8.2L18.3 11h-5.2l.1-8.2Z" fill="currentColor" /></svg></div>
+                                <div class="assistant-content">
+                                    <div class="assistant-name">Blink</div>
+                                    @if (string.IsNullOrEmpty(message.Text) && chatbot.IsProcessing)
+                                    {
+                                        <p class="thinking-indicator">Thinking through your message...</p>
+                                    }
+                                    else
+                                    {
+                                        <p>@message.Text</p>
+                                    }
+                                </div>
+                            }
+                        </article>
+                    }
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <p class="chat-error" role="alert">@errorMessage</p>
+            }
+        </section>
+
+        <footer class="composer-area">
+            <form class="composer" @onsubmit="SendMessageAsync" @onsubmit:preventDefault="true">
+                <textarea @bind="draft" @bind:event="oninput" rows="1" maxlength="2000" placeholder="Message Blink..." aria-label="Write a message"></textarea>
+                <div class="composer-bottom">
+                    <span class="composer-hint"><span class="hint-sparkle">✳</span> Friendly, thoughtful, and here to help</span>
+                    <div class="composer-actions">
+                        <span class="character-count">@draft.Length / 2000</span>
+                        <button class="send-button" type="submit" disabled="@(string.IsNullOrWhiteSpace(draft) || chatbot.IsProcessing)" aria-label="Send message" title="Send message">
+                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 15.5v-11m0 0L5.5 9m4.5-4.5L14.5 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                        </button>
+                    </div>
+                </div>
+            </form>
+            <p class="disclaimer">AI responses can be inaccurate. Review important information.</p>
+        </footer>
+    </main>
+</div>
+
+@code {
+    private string draft = string.Empty;
+    private string? errorMessage;
+    private bool sidebarOpen;
+
+    protected override void OnInitialized()
+    {
+        chatbot.OnChange += OnChatbotChanged;
+    }
+
+    private void OnChatbotChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task StartNewConversation()
+    {
+        if (chatbot.IsProcessing)
+        {
+            return;
+        }
+
+        chatbot.StartNewConversation();
+        draft = string.Empty;
+        errorMessage = null;
+        sidebarOpen = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleSidebar() => sidebarOpen = !sidebarOpen;
+
+    private Task SendPromptAsync(string text) => SendToChatbotAsync(text);
+
+    private Task SendMessageAsync() => SendToChatbotAsync(draft);
+
+    private async Task SendToChatbotAsync(string text)
+    {
+        text = text.Trim();
+        if (text.Length == 0 || chatbot.IsProcessing)
+        {
+            return;
+        }
+
+        draft = string.Empty;
+        errorMessage = null;
+
+        try
+        {
+            await chatbot.SendMessageAsync(text);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The chatbot failed to respond to a message.");
+            errorMessage = "Blink couldn't get a response. Please try again.";
+        }
+    }
+
+    public void Dispose()
+    {
+        chatbot.OnChange -= OnChatbotChanged;
+    }
+}
+
