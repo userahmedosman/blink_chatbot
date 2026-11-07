@@ -1,13 +1,14 @@
 ﻿using Blink_ChatBot.DTOs;
 using Microsoft.Extensions.AI;
 
-namespace Blink_ChatBot.Services
+namespace Blink_ChatBot.Services.Gemini
 {
     public interface IChatbot
     {
         List<ChatMessageUI> Conversation { get; }
         bool IsProcessing { get; }
 
+        ApprovalRequestUI? PendingApproval { get; }
         event Action? OnChange;
 
         void StartNewConversation();

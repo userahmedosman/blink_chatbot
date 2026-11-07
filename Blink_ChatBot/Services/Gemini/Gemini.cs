@@ -25,6 +25,8 @@ namespace Blink_ChatBot.Services.Gemini
 
         public bool IsProcessing { get; private set; }
 
+        public ApprovalRequestUI? PendingApproval { get; private set; }
+
         public event Action? OnChange;
 
         public void StartNewConversation()
@@ -45,9 +47,49 @@ namespace Blink_ChatBot.Services.Gemini
             throw new NotImplementedException();
         }
 
-        public Task ResolveApprovalAsync(bool approved, CancellationToken cancellationToken = default)
+        public async Task ResolveApprovalAsync(bool approved, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            if (PendingApproval is null || IsProcessing)
+            {
+                return;
+            }
+
+            IsProcessing = true;
+            ChatMessageUI? assistantMessage = null;
+
+            try
+            {
+                var approvalResponse = PendingApproval.ApprovalRequest.CreateResponse(approved);
+                messages.Add(new ChatMessage(ChatRole.User, [approvalResponse]));
+                PendingApproval = null;
+
+                Conversation.Add(new ChatMessageUI
+                {
+                    Role = MessageRole.System,
+                    Text = $"Tool approval {(approved ? "approved" : "denied")}."
+                });
+
+                assistantMessage = new ChatMessageUI { Role = MessageRole.AI, Text = string.Empty };
+                Conversation.Add(assistantMessage);
+                NotifyChange();
+
+                await SendMessagesToAssistant(assistantMessage, cancellationToken);
+            }
+            catch
+            {
+                if (assistantMessage is not null && string.IsNullOrEmpty(assistantMessage.Text))
+                {
+                    conversation.Remove(assistantMessage);
+                }
+
+                NotifyChange();
+                throw;
+            }
+            finally
+            {
+                IsProcessing = false;
+                NotifyChange();
+            }
         }
 
         public async Task SendMessageAsync(string userText, CancellationToken cancellationToken = default)
@@ -57,7 +99,7 @@ namespace Blink_ChatBot.Services.Gemini
                 throw new ArgumentException("A message cannot be empty.", nameof(userText));
             }
 
-            if (IsProcessing)
+            if (IsProcessing || PendingApproval != null)
             {
                 throw new InvalidOperationException("A response is already being generated.");
             }
@@ -110,8 +152,44 @@ namespace Blink_ChatBot.Services.Gemini
 
             var response = updates.ToChatResponse();
             messages.AddMessages(response);
+
+            var approvalRequest = response.Messages
+                .SelectMany(m => m.Contents)
+                .OfType<ToolApprovalRequestContent>()
+                .FirstOrDefault();
+
+            if(approvalRequest is not null)
+            {
+                if(approvalRequest.ToolCall is FunctionCallContent functionCall)
+                {
+                    PendingApproval = new ApprovalRequestUI
+                    {
+                        ApprovalRequest = approvalRequest,
+                        ToolName = ConvertToolName(functionCall.Name),
+                        Arguments = functionCall.Arguments?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value) ?? new Dictionary<string, object?>()
+                    };
+                }
+
+                if (string.IsNullOrWhiteSpace(conversation[^1].Text))
+                {
+                    conversation.RemoveAt(conversation.Count - 1);
+                }
+                NotifyChange();
+                return;
+            }
         }
 
         private void NotifyChange() => OnChange?.Invoke();
+
+        private static string ConvertToolName(string toolName)
+        {
+            return toolName switch
+            {
+                "get_weather" => "Get Weather",
+                "evaluate_weather" => "Evaluate Weather",
+                "send_email" => "Send Email",
+                _ => toolName
+            };
+        }
     }
 }

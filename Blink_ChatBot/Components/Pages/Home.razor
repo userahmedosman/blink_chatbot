@@ -13,7 +13,7 @@
             <span>blink<span class="brand-period">.</span></span>
         </a>
 
-        <button class="new-chat-button" @onclick="StartNewConversation" disabled="@chatbot.IsProcessing">
+        <button class="new-chat-button" @onclick="StartNewConversation" disabled="@(chatbot.IsProcessing || chatbot.PendingApproval is not null)">
             <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
             <span>New chat</span>
         </button>
@@ -44,7 +44,7 @@
                 <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
             </button>
             <div class="model-label"><span class="model-sparkle" aria-hidden="true">✳</span><span>Blink assistant</span><span class="model-chevron" aria-hidden="true">⌄</span></div>
-            <div class="topbar-status"><span class="online-dot"></span><span>@(chatbot.IsProcessing ? "Thinking..." : "Ready to help")</span></div>
+            <div class="topbar-status"><span class="online-dot"></span><span>@(chatbot.IsProcessing ? "Thinking..." : chatbot.PendingApproval is not null ? "Approval needed" : "Ready to help")</span></div>
         </header>
 
         <section class="conversation" aria-label="Conversation" aria-live="polite">
@@ -110,6 +110,39 @@
                     }
                 </div>
             }
+            @if (chatbot.PendingApproval is { } pendingApproval)
+            {
+                <section class="tool-approval" aria-labelledby="tool-approval-title">
+                    <div class="approval-heading">
+                        <span class="approval-icon" aria-hidden="true">!</span>
+                        <div>
+                            <p class="approval-eyebrow">Approval required</p>
+                            <h2 id="tool-approval-title">Allow @pendingApproval.ToolName?</h2>
+                        </div>
+                    </div>
+                    <p class="approval-description">Blink wants to use this tool. Review the details before choosing whether to continue.</p>
+                    @if (pendingApproval.Arguments.Count > 0)
+                    {
+                        <dl class="approval-arguments">
+                            @foreach (var argument in pendingApproval.Arguments)
+                            {
+                                <div class="approval-argument">
+                                    <dt>@argument.Key</dt>
+                                    <dd>@FormatArgumentValue(argument.Value)</dd>
+                                </div>
+                            }
+                        </dl>
+                    }
+                    else
+                    {
+                        <p class="approval-no-arguments">No additional details were provided.</p>
+                    }
+                    <div class="approval-actions">
+                        <button class="approval-deny" @onclick="() => ResolveToolApprovalAsync(false)" disabled="@chatbot.IsProcessing">Deny</button>
+                        <button class="approval-allow" @onclick="() => ResolveToolApprovalAsync(true)" disabled="@chatbot.IsProcessing">Approve and continue</button>
+                    </div>
+                </section>
+            }
             @if (!string.IsNullOrEmpty(errorMessage))
             {
                 <p class="chat-error" role="alert">@errorMessage</p>
@@ -118,12 +151,12 @@
 
         <footer class="composer-area">
             <form class="composer" @onsubmit="SendMessageAsync" @onsubmit:preventDefault="true">
-                <textarea @bind="draft" @bind:event="oninput" rows="1" maxlength="2000" placeholder="Message Blink..." aria-label="Write a message"></textarea>
+                <textarea @bind="draft" @bind:event="oninput" rows="1" maxlength="2000" placeholder="Message Blink..." aria-label="Write a message" disabled="@(chatbot.IsProcessing || chatbot.PendingApproval is not null)"></textarea>
                 <div class="composer-bottom">
                     <span class="composer-hint"><span class="hint-sparkle">✳</span> Friendly, thoughtful, and here to help</span>
                     <div class="composer-actions">
                         <span class="character-count">@draft.Length / 2000</span>
-                        <button class="send-button" type="submit" disabled="@(string.IsNullOrWhiteSpace(draft) || chatbot.IsProcessing)" aria-label="Send message" title="Send message">
+                        <button class="send-button" type="submit" disabled="@(string.IsNullOrWhiteSpace(draft) || chatbot.IsProcessing || chatbot.PendingApproval is not null)" aria-label="Send message" title="Send message">
                             <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 15.5v-11m0 0L5.5 9m4.5-4.5L14.5 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
                         </button>
                     </div>
@@ -169,7 +202,7 @@
     private async Task SendToChatbotAsync(string text)
     {
         text = text.Trim();
-        if (text.Length == 0 || chatbot.IsProcessing)
+        if (text.Length == 0 || chatbot.IsProcessing || chatbot.PendingApproval is not null)
         {
             return;
         }
@@ -187,6 +220,28 @@
             errorMessage = "Blink couldn't get a response. Please try again.";
         }
     }
+
+    private async Task ResolveToolApprovalAsync(bool approved)
+    {
+        if (chatbot.IsProcessing || chatbot.PendingApproval is null)
+        {
+            return;
+        }
+
+        errorMessage = null;
+        try
+        {
+            await chatbot.ResolveApprovalAsync(approved);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The chatbot failed while resolving tool approval.");
+            errorMessage = "Blink couldn't continue after the tool approval. Please send another message to continue.";
+        }
+    }
+
+    private static string FormatArgumentValue(object? value) =>
+        value is string text ? text : System.Text.Json.JsonSerializer.Serialize(value);
 
     public void Dispose()
     {
