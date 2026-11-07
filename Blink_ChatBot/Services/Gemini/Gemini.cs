@@ -14,10 +14,11 @@ namespace Blink_ChatBot.Services.Gemini
         private readonly List<ChatMessage> messages = [];
         private readonly List<ChatMessageUI> conversation = [];
         private readonly IChatClient chat;
-
-        public Gemini(IChatClient chatClient)
+        private readonly ChatOptions chatOptions;
+        public Gemini(IChatClient chatClient, ChatOptions chatOptions)
         {
-            chat = chatClient;
+            this.chat = chatClient;
+            this.chatOptions = chatOptions;
             messages.Add(new ChatMessage(ChatRole.System, SystemPrompt));
         }
 
@@ -136,7 +137,7 @@ namespace Blink_ChatBot.Services.Gemini
         {
             var updates = new List<ChatResponseUpdate>();
 
-            await foreach (var update in chat.GetStreamingResponseAsync(messages, cancellationToken: cancellationToken))
+            await foreach (var update in chat.GetStreamingResponseAsync(messages, chatOptions, cancellationToken))
             {
                 updates.Add(update);
 

@@ -4,6 +4,8 @@ using Blink_ChatBot.Services;
 using Blink_ChatBot.Services.Gemini;
 using Google.GenAI.Types;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
+using Microsoft.VisualBasic.FileIO;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,15 +28,15 @@ builder.Services.AddChatClient(options =>
     };
 
     return client.AsBuilder()
-        .ConfigureOptions(option =>
-        {
-            option.Tools = [.. Tools.GetTools(options)];
-        })
         .UseFunctionInvocation(null, c =>
         {
             c.IncludeDetailedErrors = true;
         })
         .Build(options.GetRequiredService<IServiceProvider>());
+});
+
+builder.Services.AddTransient<ChatOptions>(sp => new ChatOptions {
+    Tools = [.. Tools.GetTools(sp)]
 });
 
 builder.Services.AddTransient<IWeatherService, WeatherAPIService>();
