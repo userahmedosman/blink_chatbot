@@ -1,3 +1,4 @@
+using Blink_ChatBot;
 using Blink_ChatBot.Components;
 using Blink_ChatBot.Services;
 using Blink_ChatBot.Services.Gemini;
@@ -27,7 +28,7 @@ builder.Services.AddChatClient(options =>
     return client.AsBuilder()
         .ConfigureOptions(option =>
         {
-            
+            option.Tools = [.. Tools.GetTools(options)];
         })
         .UseFunctionInvocation(null, c =>
         {
@@ -36,6 +37,13 @@ builder.Services.AddChatClient(options =>
         .Build(options.GetRequiredService<IServiceProvider>());
 });
 
+builder.Services.AddTransient<IWeatherService, WeatherAPIService>();
+builder.Services.AddTransient<EvaluateWeatherConditions>();
+
+builder.Services.AddTransient<EmailGetService>();
+builder.Services.AddTransient<EmailSendService>();
+
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<IChatbot, Gemini>();
 
 // Add services to the container.

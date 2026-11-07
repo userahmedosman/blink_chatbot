@@ -162,9 +162,9 @@
 
     private void ToggleSidebar() => sidebarOpen = !sidebarOpen;
 
-    private Task SendPromptAsync(string text) => SendToChatbotAsync(text);
+    private async Task SendPromptAsync(string text) => await SendToChatbotAsync(text);
 
-    private Task SendMessageAsync() => SendToChatbotAsync(draft);
+    private async Task SendMessageAsync() => await SendToChatbotAsync(draft);
 
     private async Task SendToChatbotAsync(string text)
     {
