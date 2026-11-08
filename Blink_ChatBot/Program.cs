@@ -45,6 +45,9 @@ builder.Services.AddTransient<ChatOptions>(sp => new ChatOptions {
     Tools = [.. Tools.GetTools(sp)]
 });
 
+builder.Services.AddScoped<IPeopleService, PeopleService>();
+
+
 builder.Services.AddHttpClient<IWeatherService, WeatherAPIService>();
 builder.Services.AddTransient<EvaluateWeatherConditions>();
 

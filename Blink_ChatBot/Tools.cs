@@ -41,6 +41,9 @@ namespace Blink_ChatBot
 
             yield return new ApprovalRequiredAIFunction(sendEmailTool);
 
+            var peopleService = sp.GetRequiredService<IPeopleService>();
+            yield return AIFunctionFactory.Create(peopleService.GetAllPeopleAsync);
+
         }
     }
 }
