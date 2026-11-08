@@ -1,13 +1,19 @@
 using Blink_ChatBot;
 using Blink_ChatBot.Components;
+using Blink_ChatBot.Data;
 using Blink_ChatBot.Services;
 using Blink_ChatBot.Services.Gemini;
 using Google.GenAI.Types;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualBasic.FileIO;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlite(
+        builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddChatClient(options =>
 {
@@ -39,13 +45,13 @@ builder.Services.AddTransient<ChatOptions>(sp => new ChatOptions {
     Tools = [.. Tools.GetTools(sp)]
 });
 
-builder.Services.AddTransient<IWeatherService, WeatherAPIService>();
+builder.Services.AddHttpClient<IWeatherService, WeatherAPIService>();
 builder.Services.AddTransient<EvaluateWeatherConditions>();
 
 builder.Services.AddTransient<EmailGetService>();
 builder.Services.AddTransient<EmailSendService>();
 
-builder.Services.AddHttpClient();
+
 builder.Services.AddScoped<IChatbot, Gemini>();
 
 // Add services to the container.
