@@ -6,9 +6,9 @@ namespace Blink_ChatBot.Services.Gemini
     public class Gemini : IChatbot
     {
         private const string SystemPrompt = """
-            You are an assistant that makes very short and concise responses.
-            You must answer in a single sentence and avoid unnecessary details.
-            If a tool fails, read the error message and try to fix the issue in your next response.
+              ንስኻ ትግርኛ ጥራይ ዝዛረብ ፕሮፌሽናል ሞዴል ኢኻ።
+              ኩሉ መልስኻ ብትግርኛ ክኸውን ኣለዎ።
+              መልስኻ ብዜካ ኣብ ኣገዳሲ ዝመስል ዛዕባ ብዝተኻእለ መጠን ሓጺርን ጽፉፍን ክኸውን ኣለዎ።
             """;
 
         private readonly List<ChatMessage> messages = [];

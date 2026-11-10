@@ -3,6 +3,7 @@
 @implements IDisposable
 @inject IChatbot chatbot
 @inject ILogger<Home> Logger
+@inject IJSRuntime JS
 
 <PageTitle>Blink — Your AI chat</PageTitle>
 
@@ -47,7 +48,7 @@
             <div class="topbar-status"><span class="online-dot"></span><span>@(chatbot.IsProcessing ? "Thinking..." : chatbot.PendingApproval is not null ? "Approval needed" : "Ready to help")</span></div>
         </header>
 
-        <section class="conversation" aria-label="Conversation" aria-live="polite">
+        <section class="conversation" aria-label="Conversation" aria-live="polite" @ref="conversationElement">
             @if (chatbot.Conversation.Count == 0)
             {
                 <div class="welcome">
@@ -171,13 +172,28 @@
     private string draft = string.Empty;
     private string? errorMessage;
     private bool sidebarOpen;
+    private bool shouldScrollToBottom;
+    private ElementReference conversationElement;
 
     protected override void OnInitialized()
     {
         chatbot.OnChange += OnChatbotChanged;
     }
 
-    private void OnChatbotChanged() => _ = InvokeAsync(StateHasChanged);
+    private void OnChatbotChanged() => _ = InvokeAsync(() =>
+    {
+        shouldScrollToBottom = true;
+        StateHasChanged();
+    });
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (shouldScrollToBottom)
+        {
+            shouldScrollToBottom = false;
+            await JS.InvokeVoidAsync("blinkChat.scrollToBottom", conversationElement);
+        }
+    }
 
     private async Task StartNewConversation()
     {
